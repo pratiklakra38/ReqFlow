@@ -29,5 +29,6 @@ venv
 
 
 *.md
+!README.md
 *.docx
 *.pdf
