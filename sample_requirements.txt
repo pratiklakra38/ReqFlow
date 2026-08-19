@@ -1,0 +1,15 @@
+ReqFlow Project Requirements Spec:
+1. User Authentication:
+- Users must be able to log in with Email and Password.
+- Password must be at least 8 characters long.
+- Password must contain at least one special character.
+- Users must be able to reset their password using email confirmation.
+
+2. Document Upload:
+- User must be able to drag and drop or browse files.
+- Supported file types are PDF, DOCX, TXT.
+- Maximum file size is 20MB.
+
+3. Backlog Export:
+- User must be able to connect their GitHub account.
+- User must be able to export approved user stories to GitHub Issues.
