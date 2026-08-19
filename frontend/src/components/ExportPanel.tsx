@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { GitBranch, ExternalLink, Loader2, CheckCircle2, X, AlertCircle, ShieldCheck } from 'lucide-react';
-import axios from 'axios';
 
 interface ExportedIssue {
   story_id: string;
@@ -30,8 +29,9 @@ export function ExportPanel({ documentId, approvedCount, apiBaseUrl, onClose, on
 
   useEffect(() => {
     // Check if server has a pre-configured GitHub token
-    axios.get(`${apiBaseUrl}/export/config`)
-      .then(res => setHasServerToken(res.data.has_server_token))
+    fetch(`${apiBaseUrl}/export/config`)
+      .then(res => res.json())
+      .then(data => setHasServerToken(Boolean(data.has_server_token)))
       .catch(() => setHasServerToken(false));
 
     const savedRepo = localStorage.getItem('reqflow_gh_repo');
@@ -63,16 +63,24 @@ export function ExportPanel({ documentId, approvedCount, apiBaseUrl, onClose, on
     }
 
     try {
-      const response = await axios.post(`${apiBaseUrl}/export/${documentId}`, {
-        repo: repo.trim(),
-        token: token.trim() || undefined  // omit if empty — server will use env token
+      const response = await fetch(`${apiBaseUrl}/export/${documentId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repo: repo.trim(),
+          token: token.trim() || undefined  // omit if empty — server will use env token
+        })
       });
 
-      const data = response.data;
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || "Export failed.");
+      }
+
       setExportedIssues(data.exported_stories || []);
       onExportSuccess(data.exported_stories || []);
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || "Export failed.");
+      setError(err.message || "Export failed.");
     } finally {
       setLoading(false);
     }

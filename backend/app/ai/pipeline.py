@@ -15,17 +15,39 @@ from app.ai.prompts.test_prompt import TEST_PROMPT
 logger = logging.getLogger(__name__)
 
 def get_llm():
-    api_key = settings.OPENAI_API_KEY
-    if not api_key or api_key == "your_openai_api_key_here":
-        raise ValueError("Invalid OpenAI API key. Please configure OPENAI_API_KEY in your .env file.")
-    
-    return ChatOpenAI(
-        model="openai/gpt-4o-mini",
-        temperature=0.2,
-        openai_api_key=api_key,
-        openai_api_base=settings.OPENAI_BASE_URL,
-        model_kwargs={"response_format": {"type": "json_object"}}
-    )
+    # 1. Check for dedicated GROQ_API_KEY
+    groq_api_key = settings.GROQ_API_KEY
+    if groq_api_key and groq_api_key != "your_groq_api_key_here":
+        return ChatOpenAI(
+            model=settings.GROQ_MODEL,
+            temperature=0.2,
+            openai_api_key=groq_api_key,
+            openai_api_base=settings.GROQ_BASE_URL,
+            model_kwargs={"response_format": {"type": "json_object"}}
+        )
+
+    # 2. Check if OPENAI_API_KEY is actually a Groq key (starts with 'gsk_')
+    openai_api_key = settings.OPENAI_API_KEY
+    if openai_api_key and openai_api_key.startswith("gsk_"):
+        return ChatOpenAI(
+            model=settings.GROQ_MODEL,
+            temperature=0.2,
+            openai_api_key=openai_api_key,
+            openai_api_base=settings.GROQ_BASE_URL,
+            model_kwargs={"response_format": {"type": "json_object"}}
+        )
+
+    # 3. Fallback to OpenAI / OpenRouter if configured
+    if openai_api_key and openai_api_key not in ("your_openai_api_key_here", ""):
+        return ChatOpenAI(
+            model=settings.OPENAI_MODEL,
+            temperature=0.2,
+            openai_api_key=openai_api_key,
+            openai_api_base=settings.OPENAI_BASE_URL,
+            model_kwargs={"response_format": {"type": "json_object"}}
+        )
+
+    raise ValueError("No valid AI API key found. Please configure GROQ_API_KEY in your .env file.")
 
 def run_analysis_pipeline(requirements_text: str) -> Dict[str, Any]:
     try:

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Activity, RefreshCw, Upload, Columns, AlertOctagon, Loader2 } from 'lucide-react';
-import axios from 'axios';
 import { UploadZone } from './components/UploadZone';
 import { TextPreview } from './components/TextPreview';
 import { AgileDashboard } from './components/AgileDashboard';
@@ -22,7 +21,7 @@ function App() {
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [filename, setFilename] = useState<string | null>(null);
   const [extractedText, setExtractedText] = useState<string | null>(null);
-  
+
   const [currentView, setCurrentView] = useState<string>('upload');
   const [loadingAnalyze, setLoadingAnalyze] = useState<boolean>(false);
   const [epics, setEpics] = useState<Epic[]>([]);
@@ -35,15 +34,19 @@ function App() {
     let active = true;
     setLoadingHealth(true);
     setHealthError(null);
-    
-    axios.get<HealthData>(`${apiBaseUrl}/health`)
-      .then(response => {
+
+    fetch(`${apiBaseUrl}/health`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Server returned status ${res.status}`);
+        return res.json();
+      })
+      .then((data: HealthData) => {
         if (active) {
-          setHealth(response.data);
+          setHealth(data);
           setLoadingHealth(false);
         }
       })
-      .catch(err => {
+      .catch((err) => {
         if (active) {
           setHealthError(err.message || 'Failed to connect to backend server');
           setLoadingHealth(false);
@@ -68,13 +71,18 @@ function App() {
     if (!documentId) return;
     setLoadingAnalyze(true);
     try {
-      const response = await axios.post(`${apiBaseUrl}/analyze/${documentId}`);
-      const data = response.data;
+      const response = await fetch(`${apiBaseUrl}/analyze/${documentId}`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to analyze requirements');
+      }
       setEpics(data.epics || []);
       setAmbiguities(data.ambiguities || []);
       setCurrentView('review');
     } catch (err: any) {
-      alert("Failed to analyze requirements: " + (err.response?.data?.detail || err.message));
+      alert('Failed to analyze requirements: ' + err.message);
     } finally {
       setLoadingAnalyze(false);
     }
@@ -82,60 +90,100 @@ function App() {
 
   const handleUpdateStory = async (storyId: string, fields: Partial<UserStory>) => {
     try {
-      const response = await axios.put(`${apiBaseUrl}/artifacts/stories/${storyId}`, fields);
-      setEpics(prevEpics => prevEpics.map(epic => ({
-        ...epic,
-        stories: epic.stories.map(story => 
-          story.id === storyId ? { ...story, ...response.data } : story
-        )
-      })));
+      const response = await fetch(`${apiBaseUrl}/artifacts/stories/${storyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to update story');
+      }
+      setEpics((prevEpics) =>
+        prevEpics.map((epic) => ({
+          ...epic,
+          stories: epic.stories.map((story) =>
+            story.id === storyId ? { ...story, ...data } : story
+          ),
+        }))
+      );
     } catch (err: any) {
-      alert("Failed to update story: " + (err.response?.data?.detail || err.message));
+      alert('Failed to update story: ' + err.message);
     }
   };
 
   const handleUpdateTask = async (taskId: string, fields: Partial<Task>) => {
     try {
-      const response = await axios.put(`${apiBaseUrl}/artifacts/tasks/${taskId}`, fields);
-      setEpics(prevEpics => prevEpics.map(epic => ({
-        ...epic,
-        stories: epic.stories.map(story => ({
-          ...story,
-          tasks: story.tasks.map(task =>
-            task.id === taskId ? { ...task, ...response.data } : task
-          )
+      const response = await fetch(`${apiBaseUrl}/artifacts/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to update task');
+      }
+      setEpics((prevEpics) =>
+        prevEpics.map((epic) => ({
+          ...epic,
+          stories: epic.stories.map((story) => ({
+            ...story,
+            tasks: story.tasks.map((task) =>
+              task.id === taskId ? { ...task, ...data } : task
+            ),
+          })),
         }))
-      })));
+      );
     } catch (err: any) {
-      alert("Failed to update task: " + (err.response?.data?.detail || err.message));
+      alert('Failed to update task: ' + err.message);
     }
   };
 
   const handleUpdateCriteria = async (criteriaId: string, fields: Partial<AcceptanceCriteria>) => {
     try {
-      const response = await axios.put(`${apiBaseUrl}/artifacts/criteria/${criteriaId}`, fields);
-      setEpics(prevEpics => prevEpics.map(epic => ({
-        ...epic,
-        stories: epic.stories.map(story => ({
-          ...story,
-          criteria: story.criteria.map(crit =>
-            crit.id === criteriaId ? { ...crit, ...response.data } : crit
-          )
+      const response = await fetch(`${apiBaseUrl}/artifacts/criteria/${criteriaId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to update criteria');
+      }
+      setEpics((prevEpics) =>
+        prevEpics.map((epic) => ({
+          ...epic,
+          stories: epic.stories.map((story) => ({
+            ...story,
+            criteria: story.criteria.map((crit) =>
+              crit.id === criteriaId ? { ...crit, ...data } : crit
+            ),
+          })),
         }))
-      })));
+      );
     } catch (err: any) {
-      alert("Failed to update criteria: " + (err.response?.data?.detail || err.message));
+      alert('Failed to update criteria: ' + err.message);
     }
   };
 
   const handleUpdateAmbiguityStatus = async (flagId: string, status: string) => {
     try {
-      const response = await axios.put(`${apiBaseUrl}/artifacts/ambiguities/${flagId}`, { status });
-      setAmbiguities(prevAmbiguities => prevAmbiguities.map(flag =>
-        flag.id === flagId ? { ...flag, ...response.data } : flag
-      ));
+      const response = await fetch(`${apiBaseUrl}/artifacts/ambiguities/${flagId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to update ambiguity');
+      }
+      setAmbiguities((prevAmbiguities) =>
+        prevAmbiguities.map((flag) =>
+          flag.id === flagId ? { ...flag, ...data } : flag
+        )
+      );
     } catch (err: any) {
-      alert("Failed to update ambiguity: " + (err.response?.data?.detail || err.message));
+      alert('Failed to update ambiguity: ' + err.message);
     }
   };
 
@@ -178,27 +226,25 @@ function App() {
               <p className="text-sm text-slate-600">AI Requirement-to-User Stories Generator</p>
             </div>
           </div>
-          
+
           {epics.length > 0 && (
             <nav className="flex bg-slate-100 p-1 rounded-xl border border-slate-300">
               <button
                 onClick={() => setCurrentView('upload')}
-                className={`flex items-center space-x-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition ${
-                  currentView === 'upload'
-                    ? 'bg-white text-indigo-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`flex items-center space-x-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition ${currentView === 'upload'
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <Upload className="h-3.5 w-3.5" />
                 <span>Upload</span>
               </button>
               <button
                 onClick={() => setCurrentView('review')}
-                className={`flex items-center space-x-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition ${
-                  currentView === 'review'
-                    ? 'bg-white text-indigo-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`flex items-center space-x-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition ${currentView === 'review'
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <Columns className="h-3.5 w-3.5" />
                 <span>Agile Board</span>
@@ -208,11 +254,10 @@ function App() {
               </button>
               <button
                 onClick={() => setCurrentView('ambiguities')}
-                className={`flex items-center space-x-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition ${
-                  currentView === 'ambiguities'
-                    ? 'bg-white text-indigo-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`flex items-center space-x-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition ${currentView === 'ambiguities'
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
               >
                 <AlertOctagon className="h-3.5 w-3.5" />
                 <span>Ambiguities</span>

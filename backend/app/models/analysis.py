@@ -1,15 +1,14 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey, Uuid
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 
 class AmbiguityFlag(Base):
     __tablename__ = "ambiguity_flags"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id = Column(Uuid(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     original_text = Column(Text, nullable=False)
     explanation = Column(Text, nullable=False)
     suggested_rewrite = Column(Text, nullable=False)
@@ -21,8 +20,8 @@ class AmbiguityFlag(Base):
 class Epic(Base):
     __tablename__ = "epics"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id = Column(Uuid(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -33,8 +32,8 @@ class Epic(Base):
 class UserStory(Base):
     __tablename__ = "user_stories"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    epic_id = Column(UUID(as_uuid=True), ForeignKey("epics.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    epic_id = Column(Uuid(as_uuid=True), ForeignKey("epics.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(255), nullable=False)
     role = Column(String(255), nullable=False)
     goal = Column(Text, nullable=False)
@@ -52,8 +51,8 @@ class UserStory(Base):
 class AcceptanceCriteria(Base):
     __tablename__ = "acceptance_criteria"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    story_id = Column(UUID(as_uuid=True), ForeignKey("user_stories.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    story_id = Column(Uuid(as_uuid=True), ForeignKey("user_stories.id", ondelete="CASCADE"), nullable=False)
     scenario = Column(String(255), nullable=False)
     given_text = Column(Text, nullable=False)
     when_text = Column(Text, nullable=False)
@@ -65,8 +64,8 @@ class AcceptanceCriteria(Base):
 class Task(Base):
     __tablename__ = "tasks"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    story_id = Column(UUID(as_uuid=True), ForeignKey("user_stories.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    story_id = Column(Uuid(as_uuid=True), ForeignKey("user_stories.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(255), nullable=False)
     priority = Column(String(50), nullable=False)  # High, Medium, Low
     description = Column(Text, nullable=False)
@@ -77,8 +76,8 @@ class Task(Base):
 class TestScenario(Base):
     __tablename__ = "test_scenarios"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    story_id = Column(UUID(as_uuid=True), ForeignKey("user_stories.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    story_id = Column(Uuid(as_uuid=True), ForeignKey("user_stories.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(255), nullable=False)
     steps = Column(Text, nullable=False)
     expected_result = Column(Text, nullable=False)
