@@ -22,9 +22,13 @@ def update_story(story_id: UUID, update_data: UserStoryUpdate, db: Session = Dep
     for key, value in update_data.model_dump(exclude_unset=True).items():
         setattr(story, key, value)
 
-    db.commit()
-    db.refresh(story)
-    return story
+    try:
+        db.commit()
+        db.refresh(story)
+        return story
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update user story: {str(e)}")
 
 @router.put("/tasks/{task_id}", response_model=TaskResponse)
 def update_task(task_id: UUID, update_data: TaskUpdate, db: Session = Depends(get_db)):
@@ -35,9 +39,13 @@ def update_task(task_id: UUID, update_data: TaskUpdate, db: Session = Depends(ge
     for key, value in update_data.model_dump(exclude_unset=True).items():
         setattr(task, key, value)
 
-    db.commit()
-    db.refresh(task)
-    return task
+    try:
+        db.commit()
+        db.refresh(task)
+        return task
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update task: {str(e)}")
 
 @router.put("/criteria/{criteria_id}", response_model=AcceptanceCriteriaResponse)
 def update_criteria(criteria_id: UUID, update_data: AcceptanceCriteriaUpdate, db: Session = Depends(get_db)):
@@ -48,9 +56,13 @@ def update_criteria(criteria_id: UUID, update_data: AcceptanceCriteriaUpdate, db
     for key, value in update_data.model_dump(exclude_unset=True).items():
         setattr(crit, key, value)
 
-    db.commit()
-    db.refresh(crit)
-    return crit
+    try:
+        db.commit()
+        db.refresh(crit)
+        return crit
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update acceptance criteria: {str(e)}")
 
 @router.put("/ambiguities/{flag_id}", response_model=AmbiguityFlagResponse)
 def update_ambiguity(flag_id: UUID, update_data: AmbiguityFlagUpdate, db: Session = Depends(get_db)):
@@ -61,6 +73,11 @@ def update_ambiguity(flag_id: UUID, update_data: AmbiguityFlagUpdate, db: Sessio
     for key, value in update_data.model_dump(exclude_unset=True).items():
         setattr(flag, key, value)
 
-    db.commit()
-    db.refresh(flag)
-    return flag
+    try:
+        db.commit()
+        db.refresh(flag)
+        return flag
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update ambiguity flag: {str(e)}")
+

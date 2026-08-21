@@ -53,17 +53,20 @@ async def upload_document(file: UploadFile = File(...), db: Session = Depends(ge
     if not extracted_text.strip():
         raise HTTPException(status_code=422, detail="No readable text could be extracted from the document.")
 
-    db_document = Document(
-        filename=filename,
-        content_type=content_type,
-        file_size=file_size,
-        extracted_text=extracted_text
-    )
-    db.add(db_document)
-    db.commit()
-    db.refresh(db_document)
-
-    return db_document
+    try:
+        db_document = Document(
+            filename=filename,
+            content_type=content_type,
+            file_size=file_size,
+            extracted_text=extracted_text
+        )
+        db.add(db_document)
+        db.commit()
+        db.refresh(db_document)
+        return db_document
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database failed to save document: {str(e)}")
 
 @router.get("/{doc_id}", response_model=DocumentDetailResponse)
 def get_document(doc_id: UUID, db: Session = Depends(get_db)):

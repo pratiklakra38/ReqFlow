@@ -121,6 +121,10 @@ def export_backlog(doc_id: UUID, req: ExportRequest, db: Session = Depends(get_d
             detail=f"Failed to export backlog to GitHub: {'; '.join(errors)}"
         )
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to persist GitHub issue links to database: {str(e)}")
 
     return ExportResponse(exported_stories=exported_list)
