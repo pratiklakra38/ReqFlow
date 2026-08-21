@@ -7,23 +7,87 @@ from app.core.config import settings
 
 from app.ai.prompts.ambiguity_prompt import AMBIGUITY_PROMPT
 from app.ai.prompts.epic_prompt import EPIC_PROMPT
-from app.ai.prompts.story_prompt import STORY_PROMPT
-from app.ai.prompts.criteria_prompt import CRITERIA_PROMPT
-from app.ai.prompts.task_prompt import TASK_PROMPT
-from app.ai.prompts.test_prompt import TEST_PROMPT
+from langchain_core.prompts import PromptTemplate
 
 logger = logging.getLogger(__name__)
 
+STORY_DETAILS_PROMPT = PromptTemplate.from_template(
+    """You are a professional Agile Lead & QA Architect.
+Analyze the requirements for the given Epic and generate concrete user stories with acceptance criteria, tasks, and test scenarios.
+
+Requirements Document:
+{requirements}
+
+Epic:
+Title: {epic_title}
+Description: {epic_description}
+
+Generate 1 to 3 key user stories for this Epic. Each story MUST be in standard format: "As a [role], I want [goal], so that [benefit]".
+For EACH user story, provide:
+1. Title, Role, Goal, Benefit
+2. Criteria: list of Given-When-Then criteria (scenario, given_text, when_text, then_text)
+3. Tasks: list of development tasks (title, priority ["High", "Medium", "Low"], description)
+4. Test Scenarios: list of test scenarios (title, steps, expected_result)
+
+Respond STRICTLY with a JSON object:
+{{
+  "stories": [
+    {{
+      "title": "...",
+      "role": "...",
+      "goal": "...",
+      "benefit": "...",
+      "criteria": [
+        {{
+          "scenario": "...",
+          "given_text": "...",
+          "when_text": "...",
+          "then_text": "..."
+        }}
+      ],
+      "tasks": [
+        {{
+          "title": "...",
+          "priority": "High",
+          "description": "..."
+        }}
+      ],
+      "test_scenarios": [
+        {{
+          "title": "...",
+          "steps": "...",
+          "expected_result": "..."
+        }}
+      ]
+    }}
+  ]
+}}"""
+)
+
 def get_llm():
+    # If GROQ_API_KEY is configured, prioritize it over unpaid OpenRouter keys
+    if settings.GROQ_API_KEY and settings.GROQ_API_KEY.startswith("gsk_"):
+        logger.info(f"Using Groq LLM with model: {settings.GROQ_MODEL}")
+        return ChatOpenAI(
+            model=settings.GROQ_MODEL or "openai/gpt-oss-120b",
+            temperature=0.2,
+            openai_api_key=settings.GROQ_API_KEY,
+            openai_api_base="https://api.groq.com/openai/v1",
+            model_kwargs={"response_format": {"type": "json_object"}}
+        )
+
     api_key = settings.OPENAI_API_KEY
+    base_url = settings.OPENAI_BASE_URL
+    model = settings.OPENAI_MODEL or "openai/gpt-4o-mini"
+
     if not api_key or api_key == "your_openai_api_key_here":
-        raise ValueError("Invalid OpenAI API key. Please configure OPENAI_API_KEY in your .env file.")
+        raise ValueError("Invalid API key. Please configure GROQ_API_KEY or OPENAI_API_KEY in your .env file.")
     
     return ChatOpenAI(
-        model="openai/gpt-4o-mini",
+        model=model,
         temperature=0.2,
         openai_api_key=api_key,
-        openai_api_base=settings.OPENAI_BASE_URL,
+        openai_api_base=base_url,
         model_kwargs={"response_format": {"type": "json_object"}}
     )
 
@@ -36,24 +100,29 @@ def run_analysis_pipeline(requirements_text: str) -> Dict[str, Any]:
         return run_mock_pipeline(requirements_text)
 
     try:
+        logger.info("Executing AI ambiguity extraction...")
         ambiguity_resp = llm.invoke(AMBIGUITY_PROMPT.format(requirements=requirements_text))
         ambiguity_data = json.loads(ambiguity_resp.content)
         ambiguities = ambiguity_data.get("ambiguities", [])
 
+        logger.info("Executing AI epic extraction...")
         epic_resp = llm.invoke(EPIC_PROMPT.format(requirements=requirements_text))
         epic_data = json.loads(epic_resp.content)
         epics_list = epic_data.get("epics", [])
 
+        # Process top epics (up to 4) for optimal speed and depth
+        epics_to_process = epics_list[:4] if epics_list else []
         results = {
             "ambiguities": ambiguities,
             "epics": []
         }
 
-        for epic_item in epics_list:
+        for epic_item in epics_to_process:
             epic_title = epic_item.get("title", "Feature")
             epic_desc = epic_item.get("description", "")
+            logger.info(f"Generating detailed user stories for epic: {epic_title}")
 
-            story_resp = llm.invoke(STORY_PROMPT.format(
+            story_resp = llm.invoke(STORY_DETAILS_PROMPT.format(
                 requirements=requirements_text,
                 epic_title=epic_title,
                 epic_description=epic_desc
@@ -64,45 +133,15 @@ def run_analysis_pipeline(requirements_text: str) -> Dict[str, Any]:
             epic_structured = {
                 "title": epic_title,
                 "description": epic_desc,
-                "stories": []
+                "stories": stories_list
             }
-
-            for story_item in stories_list:
-                story_title = story_item.get("title", "")
-                role = story_item.get("role", "")
-                goal = story_item.get("goal", "")
-                benefit = story_item.get("benefit", "")
-
-                criteria_resp = llm.invoke(CRITERIA_PROMPT.format(
-                    role=role, goal=goal, benefit=benefit
-                ))
-                criteria_data = json.loads(criteria_resp.content)
-                criteria_list = criteria_data.get("criteria", [])
-
-                task_resp = llm.invoke(TASK_PROMPT.format(
-                    role=role, goal=goal, benefit=benefit
-                ))
-                task_data = json.loads(task_resp.content)
-                tasks_list = task_data.get("tasks", [])
-
-                test_resp = llm.invoke(TEST_PROMPT.format(
-                    role=role, goal=goal, benefit=benefit
-                ))
-                test_data = json.loads(test_resp.content)
-                test_list = test_data.get("test_scenarios", [])
-
-                epic_structured["stories"].append({
-                    "title": story_title,
-                    "role": role,
-                    "goal": goal,
-                    "benefit": benefit,
-                    "criteria": criteria_list,
-                    "tasks": tasks_list,
-                    "test_scenarios": test_list
-                })
-
             results["epics"].append(epic_structured)
 
+        if not results["epics"]:
+            logger.warning("No epics generated from LLM. Falling back to mock pipeline...")
+            return run_mock_pipeline(requirements_text)
+
+        logger.info("AI Analysis completed successfully with live LLM generation!")
         return results
 
     except Exception as e:
@@ -247,6 +286,24 @@ def run_mock_pipeline(text: str) -> Dict[str, Any]:
         }
 
     mock_ambiguities = [
+        {
+            "original_text": "The platform should be high-performance, resilient, and handle large scale.",
+            "explanation": "Non-functional performance metrics and specific SLAs are missing.",
+            "suggested_rewrite": "The platform must maintain p95 latency under 250ms with up to 1,000 concurrent active users."
+        },
+        {
+            "original_text": "Notifications should be dispatched automatically to appropriate parties.",
+            "explanation": "Notification transport (email, webhook, SMS) and target audience are unspecified.",
+            "suggested_rewrite": "Real-time in-app and email notifications will be sent to project administrators within 15 seconds."
+        },
+        {
+            "original_text": "Support for third-party export integration will be determined later.",
+            "explanation": "Target integration services, authentication schemas, and export formats are undefined.",
+            "suggested_rewrite": "Backlog items will be exported to GitHub Issues using personal access tokens."
+        }
+    ]
+
+    mock_epics = [
         {
             "title": "User Authentication & Access",
             "description": "Scaffolding secure login, registration, and email confirmation flows for user management.",
