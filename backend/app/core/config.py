@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
     GITHUB_TOKEN: str = ""
     PORT: int = 8000
+    MAX_DOCUMENT_CHARS: int = 150000
+    MAX_DOCUMENT_SIZE_MB: int = 20
 
     @field_validator(
         "DATABASE_URL",
